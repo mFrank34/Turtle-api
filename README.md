@@ -27,6 +27,7 @@ app/
   manager_ws.py   the WebSocket endpoint dashboards can subscribe to
   routes.py       the plain HTTP endpoints a manager calls
   keepalive.py    background task that pings every worker periodically
+  persistence.py  saves/loads worker state to a JSON file on disk
 requirements.txt
 Dockerfile
 docker-compose.yml
@@ -64,6 +65,27 @@ Point your turtles at it by setting, in the Lua script:
 ```lua
 host = "192.168.10.2:8000",   -- wherever this server actually runs
 ```
+
+## State persistence
+
+Worker state (fuel, inventory, status, location, last block seen) is written
+to `data/workers.json` (or `/data/workers.json` in the Docker image, if you
+mount a volume there — the compose file already does this) every 10 seconds,
+and immediately whenever a worker disconnects. It's loaded back on startup.
+
+This means:
+- `GET /api/v1/workers` still shows turtles that connected before a restart,
+  marked `"online": false`, until they reconnect and get marked `true` again.
+- A crash or restart doesn't wipe your fleet's last-known state.
+
+A live WebSocket connection itself obviously can't be saved to disk — only
+the plain state data is. When a turtle reconnects, its entry gets replaced
+with live state again automatically.
+
+If you don't care about surviving restarts, you can ignore this — it's
+transparent and doesn't need any configuration. To change where the file is
+written, set the `TURTLENET_DATA_DIR` environment variable (defaults to
+`./data` locally, `/data` in the Docker image via the Dockerfile's `ENV`).
 
 ## Manager API
 

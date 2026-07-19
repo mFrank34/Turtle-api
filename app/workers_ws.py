@@ -12,7 +12,8 @@ import time
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from app.state import Worker, broadcast_to_managers, workers
+from app.persistence import save_snapshot
+from app.state import Worker, broadcast_to_managers, last_known, workers
 
 router = APIRouter()
 
@@ -66,5 +67,15 @@ async def worker_ws(websocket: WebSocket, node_id: str):
     finally:
         if w.pending is not None and not w.pending.done():
             w.pending.set_exception(RuntimeError("worker disconnected before responding"))
+
+        detail = w.detail()
+        detail["online"] = False
+        last_known[node_id] = detail
         workers.pop(node_id, None)
+
+        try:
+            save_snapshot()
+        except Exception as e:
+            print(f"[TurtleNet] Failed to persist state on disconnect: {e}")
+
         await broadcast_to_managers({"event": "worker_disconnected", "node_id": node_id, "ts": time.time()})

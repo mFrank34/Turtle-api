@@ -46,6 +46,7 @@ class Worker:
             "connected_at": self.connected_at,
             "last_seen": self.last_seen,
             "seconds_since_seen": round(time.time() - self.last_seen, 1),
+            "online": True,
         }
 
     def detail(self) -> dict:
@@ -56,6 +57,12 @@ class Worker:
 
 # node_id -> Worker, for every currently-connected turtle/computer.
 workers: Dict[str, Worker] = {}
+
+# node_id -> last known detail(), for workers that have connected at some
+# point but aren't connected right now. Populated on disconnect and loaded
+# from disk at startup by app/persistence.py, so the manager still has
+# something to show immediately after a restart.
+last_known: Dict[str, dict] = {}
 
 # Manager dashboards subscribed to the live update feed (/api/v1/manager/ws).
 manager_sockets: Set[WebSocket] = set()

@@ -8,6 +8,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ ./app/
 
+ENV TURTLENET_DATA_DIR=/data
+
 EXPOSE 8000
 
 # Basic container-level healthcheck against our own /health route

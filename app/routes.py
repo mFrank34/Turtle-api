@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.commands import CommandRequest, send_and_await
 from app.config import DEFAULT_COMMAND_TIMEOUT
-from app.state import workers
+from app.state import last_known, workers
 
 router = APIRouter()
 
@@ -24,16 +24,23 @@ async def health():
 
 @router.get("/api/v1/workers")
 async def list_workers():
-    """Summary of every currently-connected worker."""
-    return {node_id: w.summary() for node_id, w in workers.items()}
+    """Every worker we know about: currently-connected ones from live state,
+    plus anything seen before that isn't connected right now (loaded from
+    disk, marked online: false)."""
+    merged = dict(last_known)
+    for node_id, w in workers.items():
+        merged[node_id] = w.summary()
+    return merged
 
 
 @router.get("/api/v1/workers/{node_id}")
 async def get_worker(node_id: str):
     w = workers.get(node_id)
-    if not w:
-        raise HTTPException(status_code=404, detail="worker not connected")
-    return w.detail()
+    if w:
+        return w.detail()
+    if node_id in last_known:
+        return last_known[node_id]
+    raise HTTPException(status_code=404, detail="worker not connected")
 
 
 @router.post("/api/v1/workers/{node_id}/command")
