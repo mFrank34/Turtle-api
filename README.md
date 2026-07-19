@@ -15,6 +15,27 @@ A small FastAPI backend for your ComputerCraft `TurtleNet` Lua client. It:
 No database — state lives in memory and resets if the server restarts (turtles
 will just reconnect and re-register).
 
+## Project layout
+
+```
+app/
+  main.py         entry point — creates the FastAPI app, wires everything together
+  config.py       tunable constants (ping interval, default timeout)
+  state.py        Worker model, in-memory registry, manager broadcast helper
+  commands.py     "send a command and wait for the reply" logic
+  workers_ws.py   the WebSocket endpoint turtles connect to
+  manager_ws.py   the WebSocket endpoint dashboards can subscribe to
+  routes.py       the plain HTTP endpoints a manager calls
+  keepalive.py    background task that pings every worker periodically
+requirements.txt
+Dockerfile
+docker-compose.yml
+```
+
+Each file has one job, so if you want to, say, change how commands time out
+you only need to open `commands.py`; if you want to add a new REST endpoint
+you only need to touch `routes.py`.
+
 ## Run it
 
 ### Option A: Docker Compose (recommended)
