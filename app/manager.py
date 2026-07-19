@@ -13,7 +13,7 @@ from app.state import manager_sockets, workers
 router = APIRouter()
 
 
-@router.websocket("/api/v1/manager/ws")
+@router.websocket("/manager/ws")
 async def manager_ws(websocket: WebSocket):
     await websocket.accept()
     manager_sockets.add(websocket)

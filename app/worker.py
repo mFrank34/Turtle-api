@@ -18,8 +18,8 @@ from app.state import Worker, broadcast_to_managers, last_known, workers
 router = APIRouter()
 
 
-@router.websocket("/api/v1/workers/ws/{node_id}")
-async def worker_ws(websocket: WebSocket, node_id: str):
+@router.websocket("/workers/ws/{node_id}")
+async def worker(websocket: WebSocket, node_id: str):
     await websocket.accept()
     w = Worker(node_id, websocket)
     workers[node_id] = w

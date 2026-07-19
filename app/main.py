@@ -22,10 +22,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.keepalive import ping_loop
 from app.logging_config import silence_health_checks
-from app.manager_ws import router as manager_ws_router
 from app.persistence import load_last_known, save_snapshot, snapshot_loop
+
+# 1. Import with unique aliases
+from app.manager import router as manager_router
 from app.routes import router as rest_router
-from app.workers_ws import router as workers_ws_router
+from app.worker import router as worker_router
+
+# 2. Use the exact alias names here
+
 
 silence_health_checks()
 
@@ -40,9 +45,8 @@ app.add_middleware(
 )
 
 app.include_router(rest_router)
-app.include_router(workers_ws_router)
-app.include_router(manager_ws_router)
-
+app.include_router(worker_router)
+app.include_router(manager_router)
 
 @app.on_event("startup")
 async def on_startup():
