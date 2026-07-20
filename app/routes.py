@@ -2,27 +2,26 @@
 Plain HTTP endpoints for the manager side: list workers, inspect one, send
 it a command (two flavors — JSON body or URL-only shorthand), broadcast to
 everyone, or disconnect one.
+
+Every route in this file requires the manager API key (via the router-level
+dependency below) — see app/auth.py and app/health.py for the one endpoint
+that's deliberately public.
 """
 
 import asyncio
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.auth import require_manager_key
 from app.commands import CommandRequest, send_and_await
 from app.config import DEFAULT_COMMAND_TIMEOUT
 from app.state import last_known, workers
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_manager_key)])
 
 
-@router.get("/health")
-async def health():
-    """Matches the Lua client's startup check: GET /health."""
-    return {"status": "ok", "workers_connected": len(workers)}
-
-
-@router.get("/workers")
+@router.get("/api/v1/workers")
 async def list_workers():
     """Every worker we know about: currently-connected ones from live state,
     plus anything seen before that isn't connected right now (loaded from
@@ -33,7 +32,7 @@ async def list_workers():
     return merged
 
 
-@router.get("/workers/{node_id}")
+@router.get("/api/v1/workers/{node_id}")
 async def get_worker(node_id: str):
     w = workers.get(node_id)
     if w:
@@ -43,7 +42,7 @@ async def get_worker(node_id: str):
     raise HTTPException(status_code=404, detail="worker not connected")
 
 
-@router.post("/workers/{node_id}/command")
+@router.post("/api/v1/workers/{node_id}/command")
 async def send_command(node_id: str, req: CommandRequest):
     """
     Send a single command to one turtle and wait for its reply. Flexible
@@ -59,7 +58,7 @@ async def send_command(node_id: str, req: CommandRequest):
     return await send_and_await(w, payload, req.timeout or DEFAULT_COMMAND_TIMEOUT)
 
 
-@router.post("/workers/{node_id}/do/{command}")
+@router.post("/api/v1/workers/{node_id}/do/{command}")
 async def do_command(
     node_id: str,
     command: str,
@@ -89,7 +88,7 @@ async def do_command(
     return await send_and_await(w, payload, timeout)
 
 
-@router.post("/workers/broadcast")
+@router.post("/api/v1/workers/broadcast")
 async def broadcast_command(req: CommandRequest):
     """Send the same command to every connected worker in parallel."""
     payload = req.model_dump(exclude_none=True, exclude={"timeout"})
@@ -105,7 +104,7 @@ async def broadcast_command(req: CommandRequest):
     return dict(results)
 
 
-@router.delete("/workers/{node_id}")
+@router.delete("/api/v1/workers/{node_id}")
 async def disconnect_worker(node_id: str):
     w = workers.get(node_id)
     if not w:

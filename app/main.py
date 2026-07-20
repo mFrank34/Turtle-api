@@ -4,12 +4,14 @@ TurtleNet Manager API — entry point.
 Run with: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 Everything is split by responsibility:
-  config.py      tunable constants
+  config.py      tunable constants + API keys read from the environment
+  auth.py        API key checks for REST routes and WebSocket endpoints
   state.py       Worker model + in-memory registry + manager broadcast
   commands.py    send-a-command-and-wait-for-reply logic
-  workers_ws.py  the WebSocket endpoint turtles connect to
-  manager_ws.py  the WebSocket endpoint dashboards can subscribe to
-  routes.py      the plain HTTP endpoints a manager calls
+  workers_ws.py  the WebSocket endpoint turtles connect to (worker key)
+  manager_ws.py  the WebSocket endpoint dashboards can subscribe to (manager key)
+  routes.py      the plain HTTP endpoints a manager calls (manager key)
+  health.py      the one endpoint that's deliberately public
   keepalive.py   the background ping loop
   persistence.py saves/loads worker state to a JSON file on disk
   logging_config.py  filters noisy /health access-log spam
@@ -20,17 +22,14 @@ import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import MANAGER_API_KEY, WORKER_API_KEY
+from app.health import router as health_router
 from app.keepalive import ping_loop
 from app.logging_config import silence_health_checks
+from app.manager import router as manager_ws_router
 from app.persistence import load_last_known, save_snapshot, snapshot_loop
-
-# 1. Import with unique aliases
-from app.manager import router as manager_router
 from app.routes import router as rest_router
-from app.worker import router as worker_router
-
-# 2. Use the exact alias names here
-
+from app.workers import router as workers_ws_router
 
 silence_health_checks()
 
@@ -44,12 +43,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(health_router)
 app.include_router(rest_router)
-app.include_router(worker_router)
-app.include_router(manager_router)
+app.include_router(workers_ws_router)
+app.include_router(manager_ws_router)
+
 
 @app.on_event("startup")
 async def on_startup():
+    if not MANAGER_API_KEY:
+        print("[TurtleNet] WARNING: TURTLENET_MANAGER_KEY is not set — the manager API is UNPROTECTED")
+    if not WORKER_API_KEY:
+        print("[TurtleNet] WARNING: TURTLENET_WORKER_KEY is not set — turtle connections are UNPROTECTED")
+
     load_last_known()
     asyncio.create_task(ping_loop())
     asyncio.create_task(snapshot_loop())

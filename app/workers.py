@@ -5,6 +5,10 @@ translation of the Lua client's connect() + main receive loop:
   - it sends a handshake ({"status": "connected", "fuel": ..., "inventory": ...})
   - then it sends either a ping reply or a command result for every message
     after that
+
+Requires the worker API key (see app/auth.py) so a random client can't
+pretend to be a turtle. The Lua client sends this as an X-Api-Key header
+when it opens the connection.
 """
 
 import json
@@ -12,15 +16,22 @@ import time
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from app.auth import worker_key_ok
 from app.persistence import save_snapshot
 from app.state import Worker, broadcast_to_managers, last_known, workers
 
 router = APIRouter()
 
 
-@router.websocket("/workers/ws/{node_id}")
-async def worker(websocket: WebSocket, node_id: str):
+@router.websocket("/api/v1/workers/ws/{node_id}")
+async def worker_ws(websocket: WebSocket, node_id: str):
     await websocket.accept()
+
+    if not worker_key_ok(websocket):
+        print(f"[TurtleNet] Rejected connection from '{node_id}': invalid or missing API key")
+        await websocket.close(code=4401, reason="invalid or missing API key")
+        return
+
     w = Worker(node_id, websocket)
     workers[node_id] = w
     print(f"[TurtleNet] Worker connected: {node_id}")
